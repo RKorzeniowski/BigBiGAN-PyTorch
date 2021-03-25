@@ -15,7 +15,7 @@ Numpy 1.18.5
 ## Implementation
 
 ### Generator & Discriminator
-![BigGAN](https://github.com/RKorzeniowski/BigBiGAN-PyTorch/blob/main/imgs/biggan_arch.png)
+![BigGAN](https://github.com/RKorzeniowski/BigBiGAN-PyTorch/blob/main/imgs/biggan_arch.jpg)
 
 Both generator and discriminator follow architecture presented in the [BigGAN](https://arxiv.org/abs/1809.11096) paper 
 
@@ -35,7 +35,12 @@ The encoder is implemented as [RevNet](https://arxiv.org/abs/1901.09005) with fe
 - Imagenette 64x64
 
 ## Samples
+
+### CIFAR10
+
 ![CIFAR10](https://github.com/RKorzeniowski/BigBiGAN-PyTorch/blob/main/imgs/CIFAR10_sample.png)
+
+### Imagewoof
 
 ![Imagewoof](https://github.com/RKorzeniowski/BigBiGAN-PyTorch/blob/main/imgs/imagewoof_sample.png)
 
