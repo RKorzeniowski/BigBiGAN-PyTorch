@@ -61,7 +61,7 @@ class Pipeline:
             plt.savefig(fname=gen_imgs_save_path)
 
             if latent is not None:
-                img_gen, noise = self.model.generate_imgs(y=y, noise=latent)
+                img_gen, noise = self.model.generate_imgs(cls=y, noise=latent)
                 img_gen = img_gen.detach().cpu()[:self.config.save_img_count, ...]
                 img_gen = np.transpose(vutils.make_grid(
                     img_gen, padding=2, nrow=self.config.img_rows, normalize=True), (1, 2, 0))
