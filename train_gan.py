@@ -17,7 +17,7 @@ parser.add_argument("--dataset", type=str, default="FMNIST",
 parser.add_argument("--data_path", type=str, default="../input/fmnist-dataset",
                     help="path to dataset root folder")
 parser.add_argument("--model_architecture", type=str, default="bigbigan",
-                    choices=["bigbiwgan", "bigbigan", "biggan"], help="type of architecture used in training")
+                    choices=["bigbigan", "biggan"], help="type of architecture used in training")
 args = parser.parse_args()
 
 

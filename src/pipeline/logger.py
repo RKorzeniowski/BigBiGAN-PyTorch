@@ -18,23 +18,20 @@ class Logger:
 
 
 class BiGANLogger(Logger):
-    def __call__(self, epoch, step, disc_loss, gen_enc_loss, logging_dict, *args, **kwargs):
+    def __call__(self, epoch, step, disc_loss, gen_enc_loss, *args, **kwargs):
+        self.counter += 1
         if step % self.logging_interval == 0:
             self.writer.add_scalar(f'Loss/Disc', disc_loss, self.counter)
             self.writer.add_scalar(f'Loss/GenEnc', gen_enc_loss, self.counter)
 
-            for k, v in logging_dict.items():
-                self.writer.add_scalar(f'{k}', v, self.counter)
-
             print(f"epoch {epoch}, disc_loss {disc_loss}, gen_enc_loss {gen_enc_loss}")
-
 
 
 class GANLogger(Logger):
     def __call__(self, epoch, step, disc_loss, gen_loss, gen_disc_acc,
                  disc_real_acc, disc_fake_acc, *args, **kwargs):
+        self.counter += 1
         if step % self.logging_interval == 0:
-            self.counter += 1
             self.writer.add_scalar(f'Loss/Disc', disc_loss, self.counter)
             self.writer.add_scalar(f'Loss/Gen', gen_loss, self.counter)
             self.writer.add_scalar(f'Gen/DiscFake', gen_disc_acc, self.counter)
@@ -46,7 +43,7 @@ class GANLogger(Logger):
 
 class ClfLogger(Logger):
     def __call__(self, epoch, loss, step, *args, **kwargs):
+        self.counter += 1
         if step % self.logging_interval == 0:
-            self.counter += 1
             self.writer.add_scalar('Loss', loss, self.counter)
             print(f"epoch {epoch}, loss {loss}")

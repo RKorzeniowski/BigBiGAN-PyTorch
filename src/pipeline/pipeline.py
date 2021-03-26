@@ -45,7 +45,6 @@ class Pipeline:
     def save_img(self, epoch, real_img, img_gen, latent=None, y=None):
         if epoch % self.config.save_metric_interval == 0 and self.counter == 0:
             with torch.no_grad():
-                #img_gen, noise = self.model.generate_imgs(fixed=True)
                 fake = img_gen.detach().cpu()[:self.config.save_img_count, ...]
             fake_img = np.transpose(vutils.make_grid(
                 fake, padding=2, nrow=self.config.img_rows, normalize=True), (1, 2, 0))
@@ -61,7 +60,7 @@ class Pipeline:
             gen_imgs_save_path = str(gen_imgs_save_folder / file_name)
             plt.savefig(fname=gen_imgs_save_path)
 
-            if latent:
+            if latent is not None:
                 img_gen, noise = self.model.generate_imgs(y=y, noise=latent)
                 img_gen = img_gen.detach().cpu()[:self.config.save_img_count, ...]
                 img_gen = np.transpose(vutils.make_grid(
@@ -78,142 +77,13 @@ class Pipeline:
                 gen_imgs_save_path = str(gen_imgs_save_folder / file_name)
                 plt.savefig(fname=gen_imgs_save_path)
 
-            # real_img = real_img.cpu()[:self.config.save_img_count, ...]
-            # real_img = np.transpose(vutils.make_grid(
-            #     real_img, padding=2, nrow=self.config.img_rows, normalize=True), (1, 2, 0))
-            # plt.imshow(real_img)
-            # real_imgs_save_folder = Path(self.config.real_imgs_save_path.format(
-            #     ds_name=self.config.ds_name,
-            #     model_architecture=self.config.model_architecture,
-            #     hparams=self.config.hparams_str,
-            # ))
-            # real_imgs_save_folder.mkdir(parents=True, exist_ok=True)
-            # real_imgs_save_path = real_imgs_save_folder / file_name
-            # plt.savefig(
-            #     fname=str(real_imgs_save_path),
-            # )
-
         self.counter += 1
-
-
-class AbsBigBiGANPipeline(Pipeline):
-    @classmethod
-    def from_config(cls, data_path, config):
-        config.device = torch.device(config.device)
-        dataloader = data_loading.get_supported_loader(config.ds_name)(data_path, config)
-        model = architecture.BigBiGAN.from_config(config).to(device=config.device)
-
-        gen_enc_criterion = losses.GeneratorEncoderLoss()
-        disc_criterion = losses.BiDiscriminatorLoss()
-
-        gen_enc_optimizer = torch.optim.Adam(model.get_gen_enc_params(), lr=config.lr_gen, betas=config.betas)
-        disc_optimizer = torch.optim.Adam(model.get_disc_params(), lr=config.lr_disc, betas=config.betas)
-
-        logger = training_logger.BiGANLogger.from_config(config=config, name=config.hparams_str)
-        return cls(
-            model=model,
-            gen_criterion=gen_enc_criterion,
-            disc_criterion=disc_criterion,
-            gen_optimizer=gen_enc_optimizer,
-            disc_optimizer=disc_optimizer,
-            dataloader=dataloader,
-            logger=logger,
-            config=config,
-        )
-
-
-class BigBiWGANPipeline(Pipeline):
-    def run_epoch(self, epoch):
-        for step, (x, y) in tqdm(enumerate(self.dataloader)):
-            logging_dict = self.get_logging_dict()
-            x, y = x.to(device=self.config.device), y.to(device=self.config.device)
-            self.model.req_grad_disc(True)
-
-            for _ in range(self.config.disc_steps):
-                img_gen, noise = self.model.generate_imgs(cls=y)
-                z_img = self.model.generate_latent(img=x)
-                self.disc_optimizer.zero_grad()
-                outputs = self.model.forward(
-                    img_real=x,
-                    img_gen=img_gen.detach(),
-                    z_noise=noise,
-                    z_img=z_img.detach(),
-                    cls=y
-                )
-
-                disc_loss = self.disc_criterion(outputs) / self.config.disc_steps
-                disc_loss.backward()
-                self.disc_optimizer.step()
-                self.model.clip_disc_weights()
-            self.log_statistics(logging_dict, outputs, "postdisc")
-
-            self.model.req_grad_disc(False)
-            self.gen_optimizer.zero_grad()
-            outputs = self.model.forward(img_real=x, img_gen=img_gen, z_noise=noise, z_img=z_img, cls=y)
-
-            gen_enc_loss = self.gen_criterion(outputs)
-            gen_enc_loss.backward()
-            self.gen_optimizer.step()
-            self.log_statistics(logging_dict, outputs, "postgen")
-
-            self.save_img(epoch, x, img_gen)
-            self.logger(epoch, step, disc_loss, gen_enc_loss, logging_dict)
-
-    def get_logging_dict(self):
-        return {
-            "disc_real_latent_acc_postdisc": 0,
-            "disc_real_img_acc_postdisc": 0,
-            "disc_real_comb_acc_postdisc": 0,
-            "disc_real_latent_acc_postgen": 0,
-            "disc_real_img_acc_postgen": 0,
-            "disc_real_comb_acc_postgen": 0,
-            "disc_gen_latent_acc_postdisc": 0,
-            "disc_gen_img_acc_postdisc": 0,
-            "disc_gen_comb_acc_postdisc": 0,
-            "disc_gen_latent_acc_postgen": 0,
-            "disc_gen_img_acc_postgen": 0,
-            "disc_gen_comb_acc_postgen": 0,
-        }
-
-    def log_statistics(self, logging_dict, outputs, update_type):
-        logging_dict[f"disc_real_latent_acc_{update_type}"] = outputs["img_real_score"]
-        logging_dict[f"disc_real_img_acc_{update_type}"] = outputs["img_gen_score"]
-        logging_dict[f"disc_real_comb_acc_{update_type}"] = outputs["comb_real_score"]
-        logging_dict[f"disc_gen_latent_acc_{update_type}"] = outputs["z_noise_score"]
-        logging_dict[f"disc_gen_img_acc_{update_type}"] = outputs["img_gen_score"]
-        logging_dict[f"disc_gen_comb_acc_{update_type}"] = outputs["comb_gen_score"]
-
-    @classmethod
-    def from_config(cls, data_path, config):
-        config.device = torch.device(config.device)
-        dataloader = data_loading.get_supported_loader(config.ds_name)(data_path, config)
-        model = architecture.BigBiWGAN.from_config(config).to(device=config.device)
-
-        gen_enc_criterion = losses.WGeneratorEncoderLoss()
-        disc_criterion = losses.BiWDiscriminatorLoss()
-
-        gen_enc_optimizer = torch.optim.RMSprop(model.get_gen_enc_params(), lr=config.lr_gen)
-        disc_optimizer = torch.optim.RMSprop(model.get_disc_params(), lr=config.lr_disc)
-
-        logger = training_logger.BiGANLogger.from_config(config=config, name=config.hparams_str)
-        return cls(
-            model=model,
-            gen_criterion=gen_enc_criterion,
-            disc_criterion=disc_criterion,
-            gen_optimizer=gen_enc_optimizer,
-            disc_optimizer=disc_optimizer,
-            dataloader=dataloader,
-            logger=logger,
-            config=config,
-        )
 
 
 class BigBiGANPipeline(Pipeline):
     def run_epoch(self, epoch):
         for step, (x, y) in tqdm(enumerate(self.dataloader)):
             x, y = x.to(device=self.config.device), y.to(device=self.config.device)
-            # fix gradient handling so that gradients can be used without rerunning the whole model
-            # check if works with gen_output.detach(), enc_outputs.detach()
             self.model.req_grad_disc(True)
             for _ in range(self.config.disc_steps):
                 img_gen, noise = self.model.generate_imgs(cls=y)
@@ -274,7 +144,6 @@ class BigBiGANInference:
 
     def inference(self):
         for step, (org_img, y) in tqdm(enumerate(self.dataloader)):
-            import pdb;pdb.set_trace()
             latent = self.encode(org_img)
             reconstructed_img = self.generate(y, latent)
             self.save_img(org_img, reconstructed_img)
